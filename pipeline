@@ -1,0 +1,52 @@
+node
+{
+    echo "GitHub BranhName ${env.BRANCH_NAME}"
+    echo "Jenkins Job Number ${env.BUILD_NUMBER}"
+    echo "Jenkins Node Name ${env.NODE_NAME}"
+  
+    echo "Jenkins Home ${env.JENKINS_HOME}"
+    echo "Jenkins URL ${env.JENKINS_URL}"
+    echo "JOB Name ${env.JOB_NAME}"
+  
+    properties([
+    buildDiscarder(logRotator(numToKeepStr: '6')),
+    pipelineTriggers([
+        pollSCM('* * * * *')
+    ])
+  ])
+    def mavenhome=tool name: "maven3.6.3"
+    
+    stage('checkout')
+    {
+        git branch: 'development', credentialsId: 'e88e8f89-44e3-439e-94f1-dd9147caa430', url: 'https://github.com/Grantsolutions/maven-web-application.git'
+    }
+    
+    stage('Build')
+    {
+        sh "${mavenhome}/bin/mvn clean package"
+    }
+
+    stage('Generate sonarQube report')
+    {
+        sh "${mavenhome}/bin/mvn clean sonar:sonar"
+    }
+    
+    stage('Deploing artifact to nexus')
+    {
+        sh "${mavenhome}/bin/mvn clean deploy"
+    }
+    
+    stage('Application Deploing')
+    {
+        sshagent(['0faa25d8-47c4-4261-a7f1-3cdfeca8dcd9']) {
+            sh "scp -o StrictHostKeyChecking=no target/maven-web-application.war ec2-user@13.59.182.165:/opt/apache-tomcat-9.0.30/webapps/web-application.war"
+
+}
+    }
+    
+    stage('send mail notification')
+    {
+        emailext body: 'my build status status is success.', subject: 'hey radha please check my build replort', to: 'rainbow0243@gmail.com'
+    }
+}
+
